@@ -98,8 +98,10 @@ docker compose run --rm train python -m train.train_ppo --timesteps 1000000 --n-
 View training progress (with TensorBoard installed locally, or via a dev container):
 
 ```bash
-tensorboard --logdir logs
+docker compose up tensorboard
 ```
+
+Then open http://localhost:6006
 
 ### Baseline comparison
 

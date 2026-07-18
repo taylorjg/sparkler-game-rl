@@ -30,6 +30,20 @@ def test_gap_shrinks_after_obstacle_cleared() -> None:
     assert sim.gap_percent == initial_gap - 2
 
 
+def test_easy_curriculum_keeps_gap_and_speed_fixed() -> None:
+    from sparkler.curriculum import EASY
+
+    sim = SparklerSimulator(seed=1, curriculum=EASY)
+    start_speed = sim._get_speed()
+    sim.running_elapsed_ms = 120_000
+    assert sim._get_speed() == start_speed
+
+    sim.obstacle_pair_cleared = True
+    sim.scroll_x = sim.obstacle.right + 1
+    sim.step(flap=False)
+    assert sim.gap_percent == INITIAL_GAP_PERCENT
+
+
 def test_reset_restores_initial_state() -> None:
     sim = SparklerSimulator(seed=1)
     for _ in range(100):
@@ -71,3 +85,13 @@ def test_heuristic_beats_random() -> None:
     assert sum(heuristic_scores) / len(heuristic_scores) > sum(random_scores) / len(
         random_scores
     )
+
+
+def test_collect_demonstrations() -> None:
+    from sparkler.curriculum import EASY
+    from sparkler.demos import collect_demonstrations
+
+    observations, actions = collect_demonstrations(3, curriculum=EASY, seed=99)
+    assert observations.shape[1] == 7
+    assert len(observations) == len(actions) > 0
+    assert set(actions.tolist()).issubset({0, 1})

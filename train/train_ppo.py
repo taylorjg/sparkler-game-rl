@@ -6,10 +6,9 @@ import argparse
 from pathlib import Path
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.evaluation import evaluate_policy
 
-from sparkler.env import SparklerEnv
+from sparkler.curriculum import EASY, FULL
+from train.training_utils import evaluate_model, make_env, train_phase
 
 
 def main() -> None:
@@ -17,6 +16,11 @@ def main() -> None:
     parser.add_argument("--timesteps", type=int, default=500_000)
     parser.add_argument("--n-envs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--curriculum",
+        action="store_true",
+        help="Train easy mode first, then ramp to full difficulty",
+    )
     args = parser.parse_args()
 
     models_dir = Path("models")
@@ -24,11 +28,15 @@ def main() -> None:
     models_dir.mkdir(exist_ok=True)
     logs_dir.mkdir(exist_ok=True)
 
-    env = make_vec_env(
-        SparklerEnv,
-        n_envs=args.n_envs,
-        seed=args.seed,
-    )
+    if args.curriculum:
+        easy_steps = args.timesteps // 2
+        full_steps = args.timesteps - easy_steps
+        env = make_env(args.n_envs, args.seed, EASY)
+        print(f"Curriculum phase 1/2: easy mode ({easy_steps} steps)")
+    else:
+        easy_steps = 0
+        full_steps = args.timesteps
+        env = make_env(args.n_envs, args.seed, FULL)
 
     model = PPO(
         "MlpPolicy",
@@ -37,15 +45,20 @@ def main() -> None:
         seed=args.seed,
         tensorboard_log=str(logs_dir),
     )
-    model.learn(total_timesteps=args.timesteps)
 
-    mean_reward, std_reward = evaluate_policy(
-        model,
-        env,
-        n_eval_episodes=20,
-        deterministic=True,
-    )
-    print(f"Eval mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
+    if args.curriculum:
+        train_phase(model, env, easy_steps, reset_timesteps=True)
+        env.close()
+        env = make_env(args.n_envs, args.seed + 1, FULL)
+        print(f"Curriculum phase 2/2: full difficulty ({full_steps} steps)")
+        train_phase(model, env, full_steps, reset_timesteps=False)
+    else:
+        train_phase(model, env, full_steps, reset_timesteps=True)
+
+    eval_env = make_env(1, args.seed + 2, FULL)
+    evaluate_model(model, eval_env, "full difficulty")
+    eval_env.close()
+    env.close()
 
     model_path = models_dir / "sparkler_ppo"
     model.save(model_path)

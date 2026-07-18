@@ -9,6 +9,7 @@ import numpy as np
 from gymnasium import spaces
 
 from sparkler.constants import DEFAULT_HEIGHT, DEFAULT_WIDTH
+from sparkler.curriculum import CurriculumSettings, FULL
 from sparkler.simulator import SparklerSimulator
 
 
@@ -21,12 +22,14 @@ class SparklerEnv(gym.Env):
         height: int = DEFAULT_HEIGHT,
         max_episode_steps: int = 10_000,
         seed: int | None = None,
+        curriculum: CurriculumSettings | None = None,
     ) -> None:
         super().__init__()
         self.width = width
         self.height = height
         self.max_episode_steps = max_episode_steps
         self.seed_value = seed
+        self.curriculum = curriculum or FULL
 
         self.action_space = spaces.Discrete(2)
         self.observation_space = spaces.Box(
@@ -45,7 +48,12 @@ class SparklerEnv(gym.Env):
     ) -> tuple[np.ndarray, dict[str, Any]]:
         super().reset(seed=seed)
         episode_seed = seed if seed is not None else self.seed_value
-        self.sim = SparklerSimulator(self.width, self.height, seed=episode_seed)
+        self.sim = SparklerSimulator(
+            self.width,
+            self.height,
+            seed=episode_seed,
+            curriculum=self.curriculum,
+        )
         self.steps = 0
         return self._obs_vector(), self._info()
 

@@ -29,3 +29,37 @@ services:
       - ./logs:/app/logs
     working_dir: /app
     command: python -m train.train_ppo
+
+  bc-train:
+    build: .
+    volumes:
+      - .:/app
+      - ./models:/app/models
+      - ./logs:/app/logs
+    working_dir: /app
+    command: python -m train.train_bc_ppo
+
+  bc-only:
+    build: .
+    volumes:
+      - .:/app
+      - ./models:/app/models
+    working_dir: /app
+    command: python -m train.train_bc_only
+
+  eval:
+    build: .
+    volumes:
+      - .:/app
+      - ./models:/app/models
+    working_dir: /app
+    command: python -m train.eval_compare
+
+  tensorboard:
+    build: .
+    volumes:
+      - ./logs:/app/logs
+    working_dir: /app
+    command: tensorboard --logdir /app/logs --host 0.0.0.0 --port 6006
+    ports:
+      - "6006:6006"

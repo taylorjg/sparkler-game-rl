@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import random
 
 from sparkler import constants as C
+from sparkler.curriculum import CurriculumSettings, FULL
 
 
 @dataclass
@@ -45,10 +46,12 @@ class SparklerSimulator:
         width: int = C.DEFAULT_WIDTH,
         height: int = C.DEFAULT_HEIGHT,
         seed: int | None = None,
+        curriculum: CurriculumSettings | None = None,
     ) -> None:
         self.width = width
         self.height = height
         self.rng = random.Random(seed)
+        self.curriculum = curriculum or FULL
         self.reset()
 
     def reset(self) -> None:
@@ -56,7 +59,9 @@ class SparklerSimulator:
         self.ship_y = self.height * C.SHIP_Y_RATIO
         self.velocity_y = 0.0
         self.running_elapsed_ms = 0.0
-        self.gap_percent = float(C.INITIAL_GAP_PERCENT)
+        self.gap_percent = float(
+            self.curriculum.fixed_gap_percent or C.INITIAL_GAP_PERCENT
+        )
         self.obstacle_pair_cleared = False
         self.score = 0
         self.thrust_remaining_ms = 0.0
@@ -119,8 +124,10 @@ class SparklerSimulator:
             reward += C.REWARD_OBSTACLE_CLEARED
 
         if self.obstacle.right < self.scroll_x:
-            if self.gap_percent > C.MIN_GAP_PERCENT:
+            if self.curriculum.enable_gap_shrink and self.gap_percent > C.MIN_GAP_PERCENT:
                 self.gap_percent -= C.GAP_SHRINK_STEP
+            elif self.curriculum.fixed_gap_percent is not None:
+                self.gap_percent = self.curriculum.fixed_gap_percent
             obstacle_x = (
                 self.scroll_x
                 + self.width
@@ -169,7 +176,10 @@ class SparklerSimulator:
         obstacle_width = self._get_obstacle_width()
         gap_height = self.height * gap_percent / 100.0
         half_remaining_height = (self.height - gap_height) / 2.0
-        centre_offset_ratio = self.rng.uniform(-0.5, 0.5)
+        if self.curriculum.centered_gaps:
+            centre_offset_ratio = 0.0
+        else:
+            centre_offset_ratio = self.rng.uniform(-0.5, 0.5)
         upper_height = (1.0 + centre_offset_ratio) * half_remaining_height
         lower_height = (1.0 - centre_offset_ratio) * half_remaining_height
         gap_top = upper_height
@@ -190,7 +200,10 @@ class SparklerSimulator:
         elapsed = self.running_elapsed_ms if at_elapsed_ms is None else at_elapsed_ms
         max_dimension = max(self.width, self.height)
         base_speed = max_dimension / 200.0
-        ramp_progress = min(1.0, elapsed / C.SPEED_RAMP_DURATION_MS)
+        if self.curriculum.enable_speed_ramp:
+            ramp_progress = min(1.0, elapsed / C.SPEED_RAMP_DURATION_MS)
+        else:
+            ramp_progress = 0.0
         multiplier = 1.0 + (C.MAX_SPEED_MULTIPLIER - 1.0) * ramp_progress
         return round(base_speed * multiplier)
 

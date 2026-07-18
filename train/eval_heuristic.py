@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sparkler.heuristic import heuristic_action
 from sparkler.simulator import SparklerSimulator
-
-
-def heuristic_action(sim: SparklerSimulator, margin: float = 5.0) -> bool:
-    """Flap when the ship drops below the gap center."""
-    return sim.ship_y > sim.obstacle.gap_center + margin
 
 
 def run_episode(seed: int | None = None, max_steps: int = 20_000) -> int:
