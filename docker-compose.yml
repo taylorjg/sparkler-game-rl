@@ -1,0 +1,31 @@
+services:
+  dev:
+    build: .
+    volumes:
+      - .:/app
+    working_dir: /app
+    stdin_open: true
+    tty: true
+
+  test:
+    build: .
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: pytest -v
+
+  heuristic:
+    build: .
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: python -m train.eval_heuristic
+
+  train:
+    build: .
+    volumes:
+      - .:/app
+      - ./models:/app/models
+      - ./logs:/app/logs
+    working_dir: /app
+    command: python -m train.train_ppo

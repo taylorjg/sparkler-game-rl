@@ -1,0 +1,35 @@
+"""Game tuning constants ported from sparkler-game-phaser/src/scenes/game-scene.ts."""
+
+# Physics
+GRAVITY_Y = 300.0
+UP_THRUST = -1500.0
+
+# Obstacles
+OBSTACLE_LINE_WIDTH = 2
+INITIAL_GAP_PERCENT = 30
+MIN_GAP_PERCENT = 10
+GAP_SHRINK_STEP = 2
+
+# Difficulty ramp
+SPEED_RAMP_DURATION_MS = 60_000
+MAX_SPEED_MULTIPLIER = 1.75
+
+# Timing
+REFERENCE_FRAME_MS = 1000 / 60
+MAX_DELTA_MS = 50
+STIMULUS_FRAME_COUNT = 5
+STIMULUS_DURATION_MS = STIMULUS_FRAME_COUNT * REFERENCE_FRAME_MS
+
+# Layout (fractions of viewport)
+SHIP_X_RATIO = 0.15
+SHIP_Y_RATIO = 0.9
+INITIAL_OBSTACLE_X_RATIO = 0.85
+
+# Fixed training viewport
+DEFAULT_WIDTH = 800
+DEFAULT_HEIGHT = 600
+
+# Rewards
+REWARD_OBSTACLE_CLEARED = 1.0
+REWARD_DEATH = -1.0
+REWARD_SURVIVAL = 0.01
