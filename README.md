@@ -25,7 +25,12 @@ docker compose run --rm train
 
 # Interactive shell
 docker compose run --rm dev bash
+
+# Export BC policy to JSON for the Phaser game
+docker compose run --rm dev python -m train.export_policy
 ```
+
+The export writes `models/sparkler_bc.json`. Copy it to `sparkler-game-phaser/public/assets/models/` and open the Phaser game with `?agent=1`.
 
 ## How training works
 
@@ -112,6 +117,24 @@ docker compose run --rm heuristic
 ```
 
 The heuristic flaps when the ship drops below the gap centre. PPO should eventually learn something smarter — timing flaps ahead of the gap, adapting to shrinking gaps and increasing scroll speed.
+
+### Behavioral cloning (recommended)
+
+The best results so far come from **behavioral cloning** on a tuned rule-based expert, not from PPO alone:
+
+```bash
+docker compose run --rm bc-only
+docker compose run --rm eval
+```
+
+Export the trained BC weights for the browser game:
+
+```bash
+docker compose run --rm dev python -m train.export_policy
+docker compose run --rm dev python -m train.export_policy --model models/sparkler_bc --output models/sparkler_bc.json
+```
+
+Copy `models/sparkler_bc.json` into `sparkler-game-phaser/public/assets/models/` and play with `?agent=1`.
 
 ## Project layout
 
