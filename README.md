@@ -1,6 +1,6 @@
 # Sparkler RL
 
-Reinforcement learning spin-off of [sparkler-game-phaser](https://github.com/taylorjg/sparkler-game-phaser). Trains an agent to play the sparkler obstacle game in a headless Python simulator, then (later) deploy the policy back into Phaser.
+Reinforcement learning spin-off of [sparkler-game-phaser](https://github.com/taylorjg/sparkler-game-phaser). Trains an agent to play the sparkler obstacle game in a headless Python simulator, then exports the policy for the Phaser browser game.
 
 ## Stack
 
@@ -20,8 +20,17 @@ docker compose run --rm test
 # Evaluate rule-based baseline
 docker compose run --rm heuristic
 
-# Train PPO (CPU; takes a while)
+# Train BC agent (recommended)
+docker compose run --rm bc-only
+
+# Compare heuristic vs BC vs BC+PPO
+docker compose run --rm eval
+
+# Train PPO from scratch (slow; mostly a baseline)
 docker compose run --rm train
+
+# BC pre-train + PPO fine-tune (experimental)
+docker compose run --rm bc-train
 
 # Interactive shell
 docker compose run --rm dev bash
@@ -95,8 +104,8 @@ The agent interacts with `SparklerEnv`, a [Gymnasium](https://gymnasium.farama.o
 
 | Event | Reward |
 |-------|--------|
-| Each frame survived | `+0.01` |
-| Obstacle cleared | `+1.0` |
+| Each frame survived | `0` |
+| Obstacle cleared | `+5.0` |
 | Collision (death) | `-1.0` |
 
 An episode ends on collision. The agent's goal is to maximise **total reward** over an episode, which encourages staying alive and clearing obstacles.
@@ -156,19 +165,63 @@ Copy `models/sparkler_bc.json` into `sparkler-game-phaser/public/assets/models/`
 
 ## Project layout
 
-```
-sparkler/
-  constants.py    # Tuning values ported from game-scene.ts
-  simulator.py    # Headless game loop
-  env.py          # Gymnasium wrapper
-train/
-  eval_heuristic.py
-  train_ppo.py
-tests/
-```
+### Docker services (`docker-compose.yml`)
+
+| Service | Command | Purpose |
+|---------|---------|---------|
+| `test` | `pytest -v` | Run unit tests |
+| `heuristic` | `train.eval_heuristic` | Score the rule-based expert |
+| `bc-only` | `train.train_bc_only` | **Recommended** — train BC (+ DAgger) on full difficulty |
+| `eval` | `train.eval_compare` | Compare heuristic, BC, and BC+PPO checkpoints |
+| `train` | `train.train_ppo` | Pure PPO from scratch (sparse-reward baseline) |
+| `bc-train` | `train.train_bc_ppo` | BC pre-train then PPO fine-tune (experimental) |
+| `dev` | shell | Interactive container with repo mounted |
+| `tensorboard` | TensorBoard on `logs/` | View PPO training curves |
+
+Generated output (gitignored): `models/` for checkpoints, `logs/` for TensorBoard.
+
+### `sparkler/` — game simulation
+
+| File | Purpose |
+|------|---------|
+| `constants.py` | Physics, layout, rewards, and expert tuning values — kept in sync with `sparkler-game-phaser/src/game/tuning.ts` |
+| `simulator.py` | Headless game loop: flap, scroll, collision, gap shrink, speed ramp |
+| `env.py` | Gymnasium wrapper (`SparklerEnv`) exposing the 7-feature observation vector and discrete flap action |
+| `curriculum.py` | Difficulty presets (`EASY` for training demos, `FULL` for the real game) |
+| `heuristic.py` | Rule-based expert used to generate BC demonstrations (`expert_action`) |
+| `demos.py` | Collect expert/DAgger transitions and run BC pre-training on an SB3 model |
+| `__init__.py` | Public exports: `SparklerEnv`, `SparklerSimulator` |
+
+### `train/` — scripts and shared helpers
+
+| File | Purpose | Typical command |
+|------|---------|-----------------|
+| `train_bc_only.py` | **Main training path** — expert demos, DAgger, BC; writes `models/sparkler_bc` | `docker compose run --rm bc-only` |
+| `eval_compare.py` | Side-by-side eval of heuristic vs saved BC / BC+PPO models | `docker compose run --rm eval` |
+| `export_policy.py` | Export SB3 `MlpPolicy` weights to browser JSON (`models/sparkler_bc.json`) | `python -m train.export_policy` |
+| `bc_utils.py` | Shared BC training loop, checkpoint save/load, post-train evaluation |
+| `training_utils.py` | Vec-env factory, PPO training phases, policy evaluation helpers |
+| `eval_heuristic.py` | Run the rule-based expert for N episodes and print scores | `docker compose run --rm heuristic` |
+| `tune_heuristic.py` | Grid search over expert margin/lookahead (dev utility; results inform `constants.py`) | `python -m train.tune_heuristic` |
+| `train_ppo.py` | Pure PPO with optional easy-mode curriculum — struggled on sparse rewards | `docker compose run --rm train` |
+| `train_bc_ppo.py` | BC pre-train then PPO fine-tune — fine-tuning hurt BC performance in practice | `docker compose run --rm bc-train` |
+
+### `tests/`
+
+| File | Purpose |
+|------|---------|
+| `test_simulator.py` | Simulator physics, env stepping, heuristic episodes, demo collection |
+
+### Root files
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Python 3.12 image with project dependencies |
+| `requirements.txt` | Pip dependencies (Gymnasium, SB3, PyTorch, etc.) |
+| `.dockerignore` | Files excluded from the Docker build context |
 
 ## Notes
 
 - Collision uses simplified rectangular gap bounds (v1); rounded polygon corners from the Phaser game are not modelled yet.
-- Constants are kept in sync with `sparkler-game-phaser/src/scenes/game-scene.ts`.
+- Constants are kept in sync with `sparkler-game-phaser/src/game/tuning.ts` and the agent observation builder in Phaser.
 - Trained models are written to `models/`; TensorBoard logs to `logs/`.
