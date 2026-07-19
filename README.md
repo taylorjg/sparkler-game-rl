@@ -30,9 +30,27 @@ docker compose run --rm dev bash
 docker compose run --rm dev python -m train.export_policy
 ```
 
-The export writes `models/sparkler_bc.json`. Copy it to `sparkler-game-phaser/public/assets/models/` and open the Phaser game with `?agent=1`.
+The export writes `models/sparkler_bc.json`. Copy it to `sparkler-game-phaser/public/assets/models/` and enable agent mode from the robot icon in the Phaser game.
 
 ## How training works
+
+### Atari-style pixel RL (not used here)
+
+Classic **Atari-style** game RL — the approach made famous by DeepMind’s DQN on the [Arcade Learning Environment (ALE)](https://github.com/Farama-Foundation/Arcade-Learning-Environment) — feeds the policy **raw screen pixels**, not game variables. Typically the agent sees a short stack of downsampled grayscale frames (for example 84×84×4) and a **convolutional neural network (CNN)** learns features and control end-to-end from those images alone.
+
+**We are not doing that in this project.** Observations are a fixed vector of **7 normalised numbers** (ship height, velocity, gap geometry, and so on) from a headless physics simulator, and the policy is a small **MLP** (`MlpPolicy`).
+
+Why:
+
+| Pixel / CNN approach | This project’s approach |
+|----------------------|-------------------------|
+| Learns from rendered frames; needs a visual pipeline (render → preprocess → stack) | Reads structured state directly from the simulator |
+| Sample-hungry — often millions of frames and GPU time | Trains in minutes on CPU with behavioural cloning |
+| Hard to align training pixels with the live Phaser renderer (resolution, particles, rounded obstacles) | Same 7 features are built in Python (`simulator.py`) and TypeScript (`agent-observation.ts`) |
+| CNN weights are heavy to run in the browser | BC exports a tiny MLP to JSON for in-game inference |
+| Sparse rewards make pure RL slow on a game like this | A tuned rule-based expert + BC gave ~14 obstacles/ep quickly |
+
+Pixel RL is the right default when you **cannot** expose meaningful state — classic Atari games hide RAM labels and you only get the bitmap. Sparkler is different: the physics are known, the gap and ship positions are available, and the goal includes **deploying the same policy back into Phaser**. Hand-crafted features plus imitation learning match that setup better than treating the problem like Breakout from pixels alone.
 
 ### What is PPO?
 
@@ -134,7 +152,7 @@ docker compose run --rm dev python -m train.export_policy
 docker compose run --rm dev python -m train.export_policy --model models/sparkler_bc --output models/sparkler_bc.json
 ```
 
-Copy `models/sparkler_bc.json` into `sparkler-game-phaser/public/assets/models/` and play with `?agent=1`.
+Copy `models/sparkler_bc.json` into `sparkler-game-phaser/public/assets/models/` and toggle agent mode from the robot icon in the HUD.
 
 ## Project layout
 
